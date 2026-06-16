@@ -1,0 +1,38 @@
+[
+  {
+    "name": "rate_limiter",
+    "def": "Definition: TokenBucketRateLimiter\nA rate limiter using the token-bucket algorithm. Configurable capacity and refill rate (tokens/second). Method `allow()` returns True if a token is available and consumes one, else False. Must be thread-safe. Raise ValueError on non-positive capacity or rate.",
+    "impl": "import threading\nimport time\n\n\nclass TokenBucketRateLimiter:\n    \"\"\"Thread-safe token-bucket rate limiter.\"\"\"\n\n    def __init__(self, capacity: int, refill_rate: float):\n        if capacity <= 0 or refill_rate <= 0:\n            raise ValueError(\"capacity and refill_rate must be positive\")\n        self._capacity = capacity\n        self._refill_rate = refill_rate\n        self._tokens = float(capacity)\n        self._last = time.monotonic()\n        self._lock = threading.Lock()\n\n    def allow(self) -> bool:\n        with self._lock:\n            now = time.monotonic()\n            self._tokens = min(\n                self._capacity, self._tokens + (now - self._last) * self._refill_rate\n            )\n            self._last = now\n            if self._tokens >= 1:\n                self._tokens -= 1\n                return True\n            return False\n",
+    "reasoning": "The definition demands thread safety, so a Lock guards all token mutation. Capacity is validated up front and a ValueError is raised per the project's fail-fast convention. Refill is computed lazily from elapsed monotonic time rather than a background thread, matching the codebase's preference for pull-based timing."
+  },
+  {
+    "name": "parse_duration",
+    "def": "Definition: parse_duration(text)\nParse a human duration string like '1h30m', '45s', '2d' into total seconds (int). Supports units d/h/m/s. Return 0 for empty input. Raise ValueError on unknown units or malformed input.",
+    "impl": "import re\n\n_UNIT_SECONDS = {\"d\": 86400, \"h\": 3600, \"m\": 60, \"s\": 1}\n_TOKEN = re.compile(r\"(\\d+)([dhms])\")\n\n\ndef parse_duration(text: str) -> int:\n    \"\"\"Convert a duration string such as '1h30m' to total seconds.\"\"\"\n    text = text.strip().lower()\n    if not text:\n        return 0\n    total = 0\n    pos = 0\n    for match in _TOKEN.finditer(text):\n        if match.start() != pos:\n            raise ValueError(f\"malformed duration: {text!r}\")\n        total += int(match.group(1)) * _UNIT_SECONDS[match.group(2)]\n        pos = match.end()\n    if pos != len(text):\n        raise ValueError(f\"malformed duration: {text!r}\")\n    return total\n",
+    "reasoning": "A compiled regex tokenises number+unit pairs, and a lookup table maps units to seconds, matching the codebase's table-driven style. Position tracking ensures the whole string is consumed so malformed input raises ValueError rather than silently parsing a prefix. Empty input returns 0 as specified."
+  },
+  {
+    "name": "lru_cache_decorator",
+    "def": "Definition: memoize(maxsize)\nA decorator that caches function results with an LRU eviction policy up to maxsize entries. Keyed by positional args. maxsize<=0 disables caching. Expose `.cache_clear()` on the wrapped function.",
+    "impl": "import functools\nfrom collections import OrderedDict\n\n\ndef memoize(maxsize: int = 128):\n    \"\"\"Return a decorator caching results with LRU eviction.\"\"\"\n\n    def decorator(func):\n        cache: \"OrderedDict\" = OrderedDict()\n\n        @functools.wraps(func)\n        def wrapper(*args):\n            if maxsize <= 0:\n                return func(*args)\n            if args in cache:\n                cache.move_to_end(args)\n                return cache[args]\n            result = func(*args)\n            cache[args] = result\n            if len(cache) > maxsize:\n                cache.popitem(last=False)\n            return result\n\n        wrapper.cache_clear = cache.clear\n        return wrapper\n\n    return decorator\n",
+    "reasoning": "An OrderedDict provides O(1) move-to-end and FIFO eviction, the idiomatic pure-Python LRU. The maxsize<=0 short-circuit avoids caching entirely as specified, and cache_clear is attached to the wrapper to mirror functools.lru_cache's public surface that the codebase already relies on."
+  },
+  {
+    "name": "retry_backoff",
+    "def": "Definition: retry(attempts, base_delay)\nDecorator that retries a function on exception with exponential backoff. Retries up to `attempts` times, sleeping base_delay * 2**n between tries. Re-raises the last exception if all attempts fail. attempts must be >= 1.",
+    "impl": "import functools\nimport time\nimport logging\n\nlogger = logging.getLogger(__name__)\n\n\ndef retry(attempts: int = 3, base_delay: float = 0.5):\n    \"\"\"Retry a callable with exponential backoff.\"\"\"\n    if attempts < 1:\n        raise ValueError(\"attempts must be >= 1\")\n\n    def decorator(func):\n        @functools.wraps(func)\n        def wrapper(*args, **kwargs):\n            last_exc = None\n            for n in range(attempts):\n                try:\n                    return func(*args, **kwargs)\n                except Exception as exc:\n                    last_exc = exc\n                    logger.warning(\"attempt %d/%d failed: %s\", n + 1, attempts, exc)\n                    if n < attempts - 1:\n                        time.sleep(base_delay * 2 ** n)\n            raise last_exc\n\n        return wrapper\n\n    return decorator\n",
+    "reasoning": "The decorator validates attempts eagerly so misuse fails at decoration time. Each failure is logged through the module logger following the codebase's logging convention, and backoff uses base_delay * 2**n. The last exception is preserved and re-raised so callers see the real failure cause."
+  },
+  {
+    "name": "chunked",
+    "def": "Definition: chunked(iterable, size)\nYield successive lists of length `size` from iterable. The final chunk may be shorter. size must be a positive int. Works on any iterable, not just sequences.",
+    "impl": "from itertools import islice\nfrom typing import Iterable, Iterator, List\n\n\ndef chunked(iterable: Iterable, size: int) -> Iterator[List]:\n    \"\"\"Yield lists of at most `size` items from any iterable.\"\"\"\n    if size <= 0:\n        raise ValueError(\"size must be a positive integer\")\n    it = iter(iterable)\n    while True:\n        batch = list(islice(it, size))\n        if not batch:\n            return\n        yield batch\n",
+    "reasoning": "Using islice over an explicit iterator supports arbitrary iterables, not just sequences, as the definition requires. The empty-batch check is the standard sentinel for exhaustion, and size is validated up front per the project's fail-fast style."
+  },
+  {
+    "name": "safe_get",
+    "def": "Definition: safe_get(mapping, path, default)\nGiven a nested dict and a dotted path like 'a.b.c', return the value at that path or `default` if any key is missing. Never raise KeyError. Non-dict intermediate values return default.",
+    "impl": "from typing import Any, Mapping\n\n\ndef safe_get(mapping: Mapping, path: str, default: Any = None) -> Any:\n    \"\"\"Return the value at a dotted `path` in a nested mapping, or `default`.\"\"\"\n    current: Any = mapping\n    for key in path.split(\".\"):\n        if not isinstance(current, Mapping) or key not in current:\n            return default\n        current = current[key]\n    return current\n",
+    "reasoning": "The path is split on dots and traversed iteratively. Each step guards against non-mapping intermediates and missing keys, returning the default instead of raising, which satisfies the never-raise-KeyError contract. Typing uses Mapping to accept any dict-like input the codebase passes."
+  }
+]

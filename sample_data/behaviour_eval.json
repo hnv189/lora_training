@@ -1,0 +1,77 @@
+[
+  {
+    "name": "rate_limiter (eval)",
+    "ood": false,
+    "codebleu": 0.74,
+    "checklist": {
+      "Naming conventions match project style": 1,
+      "Error handling matches how the codebase handles it": 1,
+      "Docstring / comment style matches": 1,
+      "Import order matches": 1,
+      "Edge cases handled the same way": 1,
+      "No hallucinated functions or libraries": 1,
+      "Structure (class vs function vs module) matches": 1,
+      "No TODO stubs — implementation is complete": 1
+    }
+  },
+  {
+    "name": "parse_duration (eval)",
+    "ood": false,
+    "codebleu": 0.68,
+    "checklist": {
+      "Naming conventions match project style": 1,
+      "Error handling matches how the codebase handles it": 1,
+      "Docstring / comment style matches": 0.5,
+      "Import order matches": 1,
+      "Edge cases handled the same way": 1,
+      "No hallucinated functions or libraries": 1,
+      "Structure (class vs function vs module) matches": 1,
+      "No TODO stubs — implementation is complete": 1
+    }
+  },
+  {
+    "name": "circuit_breaker (OOD)",
+    "ood": true,
+    "codebleu": 0.62,
+    "checklist": {
+      "Naming conventions match project style": 1,
+      "Error handling matches how the codebase handles it": 1,
+      "Docstring / comment style matches": 1,
+      "Import order matches": 0.5,
+      "Edge cases handled the same way": 0.5,
+      "No hallucinated functions or libraries": 1,
+      "Structure (class vs function vs module) matches": 1,
+      "No TODO stubs — implementation is complete": 1
+    }
+  },
+  {
+    "name": "debounce (OOD)",
+    "ood": true,
+    "codebleu": 0.58,
+    "checklist": {
+      "Naming conventions match project style": 1,
+      "Error handling matches how the codebase handles it": 0.5,
+      "Docstring / comment style matches": 1,
+      "Import order matches": 1,
+      "Edge cases handled the same way": 0.5,
+      "No hallucinated functions or libraries": 1,
+      "Structure (class vs function vs module) matches": 1,
+      "No TODO stubs — implementation is complete": 1
+    }
+  },
+  {
+    "name": "slugify (OOD)",
+    "ood": true,
+    "codebleu": 0.71,
+    "checklist": {
+      "Naming conventions match project style": 1,
+      "Error handling matches how the codebase handles it": 1,
+      "Docstring / comment style matches": 1,
+      "Import order matches": 1,
+      "Edge cases handled the same way": 1,
+      "No hallucinated functions or libraries": 1,
+      "Structure (class vs function vs module) matches": 1,
+      "No TODO stubs — implementation is complete": 0.5
+    }
+  }
+]

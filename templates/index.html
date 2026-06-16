@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LoRA Training Dashboard — Def → Implement</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">◆</span>
+      <div>
+        <h1>LoRA Training Dashboard</h1>
+        <p class="sub">Def → Implement · Behaviour Shaping · Qwen3-8B (4-bit) · RTX 2000 Ada</p>
+      </div>
+    </div>
+    <div class="source-pill" id="sourcePill">sample run</div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="loss">Loss Analysis</button>
+    <button class="tab" data-tab="dynamics">Training Dynamics</button>
+    <button class="tab" data-tab="audit">Data Audit</button>
+    <button class="tab" data-tab="prepare">Data Prep</button>
+    <button class="tab" data-tab="eval">Behaviour Eval</button>
+    <button class="tab" data-tab="config">Config</button>
+  </nav>
+
+  <main>
+    <!-- LOSS ANALYSIS -->
+    <section class="panel active" id="tab-loss">
+      <div class="panel-head">
+        <h2>Loss Analysis</h2>
+        <div class="actions">
+          <label class="upload-btn">
+            Upload trainer_state.json
+            <input type="file" id="metricsUpload" accept="application/json" hidden />
+          </label>
+          <button class="ghost" id="resetMetrics">Reset to sample</button>
+        </div>
+      </div>
+
+      <div class="cards" id="lossCards"></div>
+
+      <div class="chart-grid">
+        <div class="chart-box wide">
+          <h3>Train vs Eval Loss</h3>
+          <canvas id="lossChart"></canvas>
+        </div>
+        <div class="chart-box">
+          <h3>Train/Eval Gap <span class="hint">overfit if &gt; 0.5</span></h3>
+          <canvas id="gapChart"></canvas>
+        </div>
+      </div>
+
+      <div class="health" id="lossHealth"></div>
+    </section>
+
+    <!-- TRAINING DYNAMICS -->
+    <section class="panel" id="tab-dynamics">
+      <div class="panel-head"><h2>Training Dynamics</h2></div>
+      <div class="chart-grid">
+        <div class="chart-box">
+          <h3>Gradient Norm <span class="hint">healthy 0.1–0.5</span></h3>
+          <canvas id="gradChart"></canvas>
+        </div>
+        <div class="chart-box">
+          <h3>Learning Rate <span class="hint">cosine + warmup</span></h3>
+          <canvas id="lrChart"></canvas>
+        </div>
+      </div>
+      <div class="health" id="dynamicsHealth"></div>
+    </section>
+
+    <!-- DATA AUDIT -->
+    <section class="panel" id="tab-audit">
+      <div class="panel-head"><h2>Data Audit · Phase 0</h2></div>
+      <div class="cards" id="auditCards"></div>
+      <div class="chart-grid">
+        <div class="chart-box wide">
+          <h3>Token-length Distribution <span class="hint">set max_seq_length to P95</span></h3>
+          <canvas id="tokenChart"></canvas>
+        </div>
+        <div class="chart-box">
+          <h3>Pattern Categories</h3>
+          <canvas id="catChart"></canvas>
+        </div>
+      </div>
+      <div class="fingerprint" id="fingerprint"></div>
+    </section>
+
+    <!-- DATA PREP -->
+    <section class="panel" id="tab-prepare">
+      <div class="panel-head"><h2>Data Preparation · Phase 1</h2></div>
+      <div class="cards" id="prepCards"></div>
+      <div class="dropped" id="droppedDetail"></div>
+      <h3 class="block-title">Behaviour-first prompt format</h3>
+      <pre class="prompt-preview" id="promptPreview">Loading…</pre>
+    </section>
+
+    <!-- BEHAVIOUR EVAL -->
+    <section class="panel" id="tab-eval">
+      <div class="panel-head"><h2>Behaviour Evaluation · Phase 4</h2></div>
+      <div class="cards" id="evalCards"></div>
+      <div class="chart-grid">
+        <div class="chart-box wide">
+          <h3>Per-sample Scores <span class="hint">checklist target &gt;0.75 · CodeBLEU &gt;0.60</span></h3>
+          <canvas id="evalChart"></canvas>
+        </div>
+      </div>
+      <table class="data-table" id="evalTable"></table>
+      <h3 class="block-title">Failure-mode diagnosis</h3>
+      <table class="data-table" id="failTable"></table>
+    </section>
+
+    <!-- CONFIG -->
+    <section class="panel" id="tab-config">
+      <div class="panel-head"><h2>Run Configuration</h2></div>
+      <div id="configView"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span>LoRA behaviour-shaping pipeline · loss-masked SFT on <code>### Implementation:</code></span>
+  </footer>
+
+  <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

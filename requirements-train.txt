@@ -1,0 +1,11 @@
+# GPU training dependencies — install on the RTX 2000 Ada box.
+# (kept separate so the web dashboard installs cleanly on CPU-only machines)
+torch>=2.2
+transformers>=4.44
+peft>=0.12
+trl>=0.9
+datasets>=2.20
+bitsandbytes>=0.43
+accelerate>=0.33
+anthropic>=0.34
+codebleu>=0.7

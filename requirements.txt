@@ -1,0 +1,17 @@
+# --- Web app (always required) ---
+Flask>=3.0,<4.0
+
+# --- Training pipeline (optional; needed only to run real training) ---
+# Install on the GPU box with:  pip install -r requirements-train.txt
+# These are intentionally NOT pinned here so the dashboard stays installable
+# on a CPU-only / no-CUDA machine.
+#
+#   torch
+#   transformers>=4.44
+#   peft>=0.12
+#   trl>=0.9
+#   datasets>=2.20
+#   bitsandbytes>=0.43
+#   accelerate>=0.33
+#   anthropic           # synthetic reasoning traces (Phase 1.2)
+#   codebleu            # structural eval metric (Phase 4.1)
