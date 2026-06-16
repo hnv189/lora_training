@@ -26,6 +26,7 @@
     <button class="tab" data-tab="audit">Data Audit</button>
     <button class="tab" data-tab="prepare">Data Prep</button>
     <button class="tab" data-tab="eval">Behaviour Eval</button>
+    <button class="tab" data-tab="models">Models</button>
     <button class="tab" data-tab="config">Config</button>
   </nav>
 
@@ -47,6 +48,12 @@
               <option value="real">Real (4-bit Qwen3-8B + LoRA)</option>
             </select>
           </label>
+          <label>Base model
+            <select id="cfgBaseModel">
+              <option value="">Default (Qwen/Qwen3-8B from Hub)</option>
+            </select>
+          </label>
+          <p class="note">Need a different base model? Fetch it from the <b>Models</b> tab first.</p>
           <div class="form-row">
             <label>Epochs <input type="number" id="cfgEpochs" value="3" min="1" max="10" /></label>
             <label>LoRA rank <input type="number" id="cfgRank" value="32" min="4" max="128" step="4" /></label>
@@ -167,6 +174,40 @@
       <table class="data-table" id="evalTable"></table>
       <h3 class="block-title">Failure-mode diagnosis</h3>
       <table class="data-table" id="failTable"></table>
+    </section>
+
+    <!-- MODELS -->
+    <section class="panel" id="tab-models">
+      <div class="panel-head"><h2>Models · Hugging Face Hub</h2></div>
+
+      <div class="train-form">
+        <h3>Search</h3>
+        <div class="form-row">
+          <label>Query <input type="text" id="modelSearchQuery" placeholder="qwen, llama, mistral…" /></label>
+          <label>HF token (optional, for gated repos) <input type="password" id="fetchToken" placeholder="hf_..." /></label>
+        </div>
+        <div class="train-buttons">
+          <button class="upload-btn" id="modelSearchBtn">🔍 Search</button>
+        </div>
+        <p class="note">Only repos shipping <code>.safetensors</code> or <code>.gguf</code> weights are shown.</p>
+      </div>
+
+      <table class="data-table" id="modelSearchTable"></table>
+
+      <h3 class="block-title">Fetch by exact repo ID</h3>
+      <div class="train-form">
+        <div class="form-row">
+          <label>Repo ID <input type="text" id="fetchRepoId" placeholder="Qwen/Qwen3-8B" /></label>
+          <label>Revision (optional) <input type="text" id="fetchRevision" placeholder="main" /></label>
+        </div>
+        <div class="train-buttons">
+          <button class="upload-btn" id="fetchModelBtn">⬇ Download model</button>
+        </div>
+        <p class="note" id="fetchNote"></p>
+      </div>
+
+      <h3 class="block-title">Downloaded models <span class="hint">selectable on the Train tab</span></h3>
+      <table class="data-table" id="localModelsTable"></table>
     </section>
 
     <!-- CONFIG -->

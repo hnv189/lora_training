@@ -130,8 +130,9 @@ def start(config: dict[str, Any]) -> dict[str, Any]:
         lr = float(config.get("learning_rate", 2e-4))
         dataset = config.get("dataset", "./dataset")
         step_delay = float(config.get("step_delay", 0.4))
+        base_model = config.get("base_model") or None
 
-        cmd = _build_command(mode, epochs, rank, lr, dataset, step_delay)
+        cmd = _build_command(mode, epochs, rank, lr, dataset, step_delay, base_model)
 
         log_fh = open(LOG_FILE, "w")
         _proc = subprocess.Popen(
@@ -152,6 +153,7 @@ def start(config: dict[str, Any]) -> dict[str, Any]:
                 "rank": rank,
                 "learning_rate": lr,
                 "dataset": dataset,
+                "base_model": base_model,
             },
             "started_at": _now(),
             "ended_at": None,
@@ -164,16 +166,20 @@ def start(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def _build_command(
-    mode: str, epochs: int, rank: int, lr: float, dataset: str, step_delay: float
+    mode: str, epochs: int, rank: int, lr: float, dataset: str, step_delay: float,
+    base_model: str | None = None,
 ) -> list[str]:
     if mode == "real":
-        return [
+        cmd = [
             sys.executable, "-m", "lora_pipeline.train",
             "--dataset", dataset,
             "--output", CURRENT_RUN,
             "--epochs", str(epochs),
             "--rank", str(rank),
         ]
+        if base_model:
+            cmd += ["--base-model", base_model]
+        return cmd
     return [
         sys.executable, os.path.join(BASE_DIR, "scripts", "simulate_training.py"),
         "--output", CURRENT_RUN,

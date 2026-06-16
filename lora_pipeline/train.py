@@ -136,13 +136,14 @@ def make_live_metrics_callback(output_dir: str):
 
 
 def train(dataset_dir: str = "./dataset", output_dir: str = "./lora-checkpoints",
-          epochs: int = 3, r: int = 32, max_seq_length: int = 2048):
+          epochs: int = 3, r: int = 32, max_seq_length: int = 2048,
+          base_model: str = BASE_MODEL):
     from datasets import load_from_disk
     from peft import get_peft_model
     from trl import SFTTrainer, DataCollatorForCompletionOnlyLM
     from .prepare_data import RESPONSE_TEMPLATE
 
-    model, tokenizer = load_model_4bit()
+    model, tokenizer = load_model_4bit(base_model)
     model = get_peft_model(model, build_lora_config(r=r))
     model.print_trainable_parameters()  # expect ~1-2% of params trainable
 
@@ -183,8 +184,11 @@ def main():
     ap.add_argument("--epochs", type=int, default=3)
     ap.add_argument("--rank", type=int, default=32)
     ap.add_argument("--max-seq-length", type=int, default=2048)
+    ap.add_argument("--base-model", default=BASE_MODEL,
+                    help="HF repo id or local path to a downloaded snapshot")
     args = ap.parse_args()
-    train(args.dataset, args.output, args.epochs, args.rank, args.max_seq_length)
+    train(args.dataset, args.output, args.epochs, args.rank, args.max_seq_length,
+          args.base_model)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ dataset/
 lora-checkpoints/
 final-model/
 runs/
+models/
 *.safetensors
 *.bin
 wandb/

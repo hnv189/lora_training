@@ -1,5 +1,6 @@
 # --- Web app (always required) ---
 Flask>=3.0,<4.0
+huggingface_hub>=0.23
 
 # --- Training pipeline (optional; needed only to run real training) ---
 # Install on the GPU box with:  pip install -r requirements-train.txt

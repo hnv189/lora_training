@@ -49,6 +49,7 @@ function load(tab) {
     audit: loadAudit,
     prepare: loadPrepare,
     eval: loadEval,
+    models: loadModels,
     config: loadConfig,
   };
   (map[tab] || (() => {}))();
@@ -72,12 +73,14 @@ async function loadTrain(force) {
       "incrementally so the live loss chart and analysis are fully exercised. On your " +
       "RTX 2000 Ada box (with requirements-train.txt installed) pick Real to fine-tune Qwen3-8B.";
   }
+  refreshLocalModels();
   refreshTrainStatus();
 }
 
 document.getElementById("startBtn").addEventListener("click", async () => {
   const config = {
     mode: document.getElementById("cfgMode").value,
+    base_model: document.getElementById("cfgBaseModel").value,
     epochs: parseInt(document.getElementById("cfgEpochs").value, 10),
     rank: parseInt(document.getElementById("cfgRank").value, 10),
     learning_rate: parseFloat(document.getElementById("cfgLr").value),
@@ -114,7 +117,8 @@ async function refreshTrainStatus() {
   pill.textContent = job.status;
 
   document.getElementById("statusMeta").textContent = job.mode
-    ? `mode: ${job.mode}${job.config ? ` · ${job.config.epochs} epochs · rank ${job.config.rank}` : ""}`
+    ? `mode: ${job.mode}${job.config ? ` · ${job.config.epochs} epochs · rank ${job.config.rank}` : ""}` +
+      (job.config && job.config.base_model ? ` · base: ${job.config.base_model}` : "")
     : "";
 
   document.getElementById("startBtn").disabled = running;
@@ -480,6 +484,116 @@ async function loadConfig() {
   loaded.config = true;
   document.getElementById("configView").innerHTML =
     `<pre>${JSON.stringify(d, null, 2)}</pre>`;
+}
+
+/* ---------------- Models ---------------- */
+async function loadModels() {
+  refreshLocalModels();
+}
+
+document.getElementById("modelSearchBtn").addEventListener("click", () => searchModels());
+document.getElementById("modelSearchQuery").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") searchModels();
+});
+
+async function searchModels() {
+  const q = document.getElementById("modelSearchQuery").value.trim();
+  const table = document.getElementById("modelSearchTable");
+  if (!q) { table.innerHTML = ""; return; }
+  table.innerHTML = `<tbody><tr><td>Searching…</td></tr></tbody>`;
+  const d = await getJSON(`/api/models/search?q=${encodeURIComponent(q)}`);
+  if (d.error) { table.innerHTML = `<tbody><tr><td>${d.error}</td></tr></tbody>`; return; }
+  if (!d.results.length) {
+    table.innerHTML = `<tbody><tr><td>No results with a supported format (.safetensors / .gguf).</td></tr></tbody>`;
+    return;
+  }
+  table.innerHTML = `
+    <thead><tr><th>Repo ID</th><th>Format</th><th>Downloads</th><th>Likes</th><th></th></tr></thead>
+    <tbody>${d.results.map((m) => `
+      <tr>
+        <td>${m.repo_id}</td>
+        <td>${m.extensions.join(", ")}</td>
+        <td>${m.downloads ?? "—"}</td>
+        <td>${m.likes ?? "—"}</td>
+        <td>${m.local
+          ? `<span class="env-badge on">downloaded</span>`
+          : `<button class="ghost search-fetch-btn" data-repo="${m.repo_id}">⬇ Download</button>`}</td>
+      </tr>`).join("")}</tbody>`;
+  table.querySelectorAll(".search-fetch-btn").forEach((btn) => {
+    btn.addEventListener("click", () => fetchModel(btn.dataset.repo, btn));
+  });
+}
+
+let fetchModelPoll = null;
+
+async function fetchModel(repo_id, triggerBtn) {
+  const body = {
+    repo_id,
+    revision: document.getElementById("fetchRevision").value.trim(),
+    token: document.getElementById("fetchToken").value.trim(),
+  };
+  const r = await getJSON("/api/models/fetch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (r.error) { document.getElementById("fetchNote").textContent = r.error; return; }
+  document.getElementById("fetchModelBtn").disabled = true;
+  if (triggerBtn) { triggerBtn.disabled = true; triggerBtn.textContent = "Downloading…"; }
+  if (fetchModelPoll) clearInterval(fetchModelPoll);
+  fetchModelPoll = setInterval(refreshFetchStatus, 1500);
+  refreshFetchStatus();
+}
+
+document.getElementById("fetchModelBtn").addEventListener("click", () => {
+  const repo_id = document.getElementById("fetchRepoId").value.trim();
+  if (!repo_id) { alert("Enter a repo id, e.g. Qwen/Qwen3-8B"); return; }
+  fetchModel(repo_id);
+});
+
+async function refreshFetchStatus() {
+  const d = await getJSON("/api/models/fetch/status");
+  const note = document.getElementById("fetchNote");
+  if (d.status === "running") {
+    note.textContent = `Downloading ${d.repo_id}…`;
+  } else if (d.status === "completed") {
+    note.textContent = `Downloaded ${d.repo_id} → ${d.local_dir}`;
+    clearInterval(fetchModelPoll);
+    document.getElementById("fetchModelBtn").disabled = false;
+    refreshLocalModels();
+    document.querySelectorAll(".search-fetch-btn").forEach((btn) => {
+      if (btn.dataset.repo === d.repo_id) {
+        btn.outerHTML = `<span class="env-badge on">downloaded</span>`;
+      }
+    });
+  } else if (d.status === "failed") {
+    note.textContent = `Failed: ${d.error}`;
+    clearInterval(fetchModelPoll);
+    document.getElementById("fetchModelBtn").disabled = false;
+  }
+}
+
+async function refreshLocalModels() {
+  const d = await getJSON("/api/models");
+  const table = document.getElementById("localModelsTable");
+  if (!d.deps_available) {
+    table.innerHTML = `<tbody><tr><td>huggingface_hub not installed — run: pip install -r requirements.txt</td></tr></tbody>`;
+  } else if (!d.local.length) {
+    table.innerHTML = `<tbody><tr><td>No models downloaded yet.</td></tr></tbody>`;
+  } else {
+    table.innerHTML = `
+      <thead><tr><th>Repo ID</th><th>Local path</th></tr></thead>
+      <tbody>${d.local.map((m) => `<tr><td>${m.repo_id}</td><td>${m.path}</td></tr>`).join("")}</tbody>`;
+  }
+  updateBaseModelOptions(d.local || []);
+}
+
+function updateBaseModelOptions(localModels) {
+  const select = document.getElementById("cfgBaseModel");
+  const current = select.value;
+  select.innerHTML = `<option value="">Default (Qwen/Qwen3-8B from Hub)</option>` +
+    localModels.map((m) => `<option value="${m.path}">${m.repo_id}</option>`).join("");
+  if (localModels.some((m) => m.path === current)) select.value = current;
 }
 
 /* Initial load — Train is the default tab. Resume polling if a run is live. */

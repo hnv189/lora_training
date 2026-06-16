@@ -18,7 +18,7 @@ import os
 
 from flask import Flask, jsonify, render_template, request
 
-from lora_pipeline import data_audit, evaluate, job, metrics, prepare_data
+from lora_pipeline import data_audit, evaluate, fetch_model, job, metrics, prepare_data
 
 app = Flask(__name__)
 
@@ -226,6 +226,61 @@ def api_train_environment():
             "resolved_auto_mode": job.resolve_mode("auto"),
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# API — model fetching (download base models from the Hugging Face Hub)
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/models")
+def api_models():
+    return jsonify(
+        {
+            "deps_available": fetch_model.deps_available(),
+            "local": fetch_model.list_local_models(),
+        }
+    )
+
+
+@app.route("/api/models/search")
+def api_models_search():
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"error": "q is required"}), 400
+    if not fetch_model.deps_available():
+        return jsonify({"error": "huggingface_hub is not installed"}), 400
+    try:
+        limit = int(request.args.get("limit", 15))
+        results = fetch_model.search_models(query, limit=limit)
+        return jsonify({"results": results})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/models/fetch", methods=["POST"])
+def api_models_fetch():
+    body = request.get_json(silent=True) or {}
+    repo_id = (body.get("repo_id") or "").strip()
+    if not repo_id:
+        return jsonify({"error": "repo_id is required, e.g. Qwen/Qwen3-8B"}), 400
+    try:
+        result = fetch_model.start(
+            repo_id,
+            local_dir=body.get("local_dir") or None,
+            revision=body.get("revision") or None,
+            token=body.get("token") or None,
+        )
+        return jsonify(result)
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/models/fetch/status")
+def api_models_fetch_status():
+    return jsonify(fetch_model.status())
 
 
 @app.route("/api/health")
