@@ -20,7 +20,8 @@
   </header>
 
   <nav class="tabs">
-    <button class="tab active" data-tab="loss">Loss Analysis</button>
+    <button class="tab active" data-tab="train">Train</button>
+    <button class="tab" data-tab="loss">Loss Analysis</button>
     <button class="tab" data-tab="dynamics">Training Dynamics</button>
     <button class="tab" data-tab="audit">Data Audit</button>
     <button class="tab" data-tab="prepare">Data Prep</button>
@@ -29,8 +30,61 @@
   </nav>
 
   <main>
+    <!-- TRAIN -->
+    <section class="panel active" id="tab-train">
+      <div class="panel-head">
+        <h2>Training Pipeline</h2>
+        <div class="env-badges" id="envBadges"></div>
+      </div>
+
+      <div class="train-layout">
+        <div class="train-form">
+          <h3>Launch a run</h3>
+          <label>Mode
+            <select id="cfgMode">
+              <option value="auto">Auto (real if GPU, else simulate)</option>
+              <option value="simulate">Simulate (no GPU needed)</option>
+              <option value="real">Real (4-bit Qwen3-8B + LoRA)</option>
+            </select>
+          </label>
+          <div class="form-row">
+            <label>Epochs <input type="number" id="cfgEpochs" value="3" min="1" max="10" /></label>
+            <label>LoRA rank <input type="number" id="cfgRank" value="32" min="4" max="128" step="4" /></label>
+          </div>
+          <div class="form-row">
+            <label>Learning rate <input type="text" id="cfgLr" value="0.0002" /></label>
+            <label>Step delay (sim) <input type="text" id="cfgDelay" value="0.4" /></label>
+          </div>
+          <div class="train-buttons">
+            <button class="upload-btn" id="startBtn">▶ Start training</button>
+            <button class="ghost danger" id="stopBtn" disabled>■ Stop</button>
+          </div>
+          <p class="note" id="trainNote"></p>
+        </div>
+
+        <div class="train-status">
+          <div class="status-head">
+            <span class="status-pill idle" id="statusPill">idle</span>
+            <span class="status-meta" id="statusMeta"></span>
+          </div>
+          <div class="progress-wrap"><div class="progress-bar" id="progressBar"></div></div>
+          <div class="cards mini" id="trainCards"></div>
+        </div>
+      </div>
+
+      <div class="chart-grid">
+        <div class="chart-box wide">
+          <h3>Live Loss <span class="hint">updates as the run logs</span></h3>
+          <canvas id="liveLossChart"></canvas>
+        </div>
+      </div>
+
+      <h3 class="block-title">Run log</h3>
+      <pre class="prompt-preview log-view" id="trainLog">No run yet. Click “Start training”.</pre>
+    </section>
+
     <!-- LOSS ANALYSIS -->
-    <section class="panel active" id="tab-loss">
+    <section class="panel" id="tab-loss">
       <div class="panel-head">
         <h2>Loss Analysis</h2>
         <div class="actions">

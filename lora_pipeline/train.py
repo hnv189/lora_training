@@ -94,6 +94,47 @@ def build_training_args(output_dir: str = "./lora-checkpoints", epochs: int = 3)
     )
 
 
+def make_live_metrics_callback(output_dir: str):
+    """A TrainerCallback that dumps trainer_state.json on every log/eval.
+
+    HF Trainer only persists trainer_state.json at checkpoint-save time, which
+    is too coarse for live dashboard monitoring. This writes it (atomically) on
+    every logging and evaluation step so the dashboard updates in real time.
+    """
+    import json as _json
+    import os as _os
+    from transformers import TrainerCallback
+
+    state_path = _os.path.join(output_dir, "trainer_state.json")
+
+    class LiveMetricsCallback(TrainerCallback):
+        def _dump(self, state):
+            _os.makedirs(output_dir, exist_ok=True)
+            payload = {
+                "best_metric": state.best_metric,
+                "best_model_checkpoint": state.best_model_checkpoint,
+                "epoch": state.epoch,
+                "global_step": state.global_step,
+                "max_steps": state.max_steps,
+                "num_train_epochs": state.num_train_epochs,
+                "log_history": state.log_history,
+            }
+            tmp = state_path + ".tmp"
+            with open(tmp, "w") as fh:
+                _json.dump(payload, fh, indent=2)
+            _os.replace(tmp, state_path)
+
+        def on_log(self, args, state, control, **kwargs):
+            if state.is_world_process_zero:
+                self._dump(state)
+
+        def on_evaluate(self, args, state, control, **kwargs):
+            if state.is_world_process_zero:
+                self._dump(state)
+
+    return LiveMetricsCallback()
+
+
 def train(dataset_dir: str = "./dataset", output_dir: str = "./lora-checkpoints",
           epochs: int = 3, r: int = 32, max_seq_length: int = 2048):
     from datasets import load_from_disk
@@ -124,6 +165,8 @@ def train(dataset_dir: str = "./dataset", output_dir: str = "./lora-checkpoints"
         dataset_text_field="text",
         max_seq_length=max_seq_length,
     )
+    # Live dashboard monitoring: persist trainer_state.json on every log/eval.
+    trainer.add_callback(make_live_metrics_callback(output_dir))
     trainer.train()
     trainer.save_model(f"{output_dir}/best")
 

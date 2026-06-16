@@ -29,6 +29,7 @@ tab is populated immediately. No GPU required to explore the analysis.
 
 | Tab | What it analyses |
 |---|---|
+| **Train** | Launch a run from the browser, watch **live loss** stream in, stop mid-run. Auto-detects GPU: real training when available, otherwise a faithful simulation |
 | **Loss Analysis** | Train vs eval loss, best checkpoint, train/eval **gap** (overfit if > 0.5), per-metric health verdicts |
 | **Training Dynamics** | Gradient norm (healthy 0.1–0.5, exploding > 2.0) and the cosine LR schedule |
 | **Data Audit** (Phase 0) | Pair count + readiness, token-length histogram with **P95 → recommended `max_seq_length`**, pattern-category balance, behavioural fingerprint |
@@ -36,11 +37,40 @@ tab is populated immediately. No GPU required to explore the analysis.
 | **Behaviour Eval** (Phase 4) | Checklist score (>0.75), CodeBLEU (>0.60), **out-of-distribution pass rate**, failure-mode table |
 | **Config** | The exact LoRA + training arguments used |
 
+### Launch training from the app
+
+The **Train** tab drives the whole pipeline:
+
+1. Pick a **mode** — `auto` (real if a GPU is present, else simulate), `simulate`,
+   or `real` — plus epochs, LoRA rank and learning rate.
+2. Hit **Start training**. The job runs as a background subprocess and writes
+   `trainer_state.json` incrementally; the dashboard polls it and streams the
+   **live loss curve**, step/epoch counters, progress bar and run log.
+3. **Stop** cleanly at any time (terminates the job's process group).
+
+* **No GPU here?** The app falls back to **simulation** — `scripts/simulate_training.py`
+  writes a realistic, schema-identical `trainer_state.json` step-by-step, so the
+  live monitoring and analysis are fully exercised without any ML wheels.
+* **On your RTX 2000 Ada box** (with `requirements-train.txt` installed), choose
+  **Real** to fine-tune Qwen3-8B. `train.py` adds a `LiveMetricsCallback` that
+  persists `trainer_state.json` on every log/eval step, so the same live chart
+  works on real runs. Jobs use a detached session, so a server restart won't
+  kill a multi-hour training run.
+
 ### Analyse your own run
 
 Click **Upload `trainer_state.json`** on the Loss Analysis tab. The file is the
 one HuggingFace `Trainer` writes into your `output_dir`. The dashboard re-runs
 the full loss / overfit / gradient analysis on it instantly.
+
+### Training-pipeline API
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/train/start` | POST | Launch a run (`{mode, epochs, rank, learning_rate, step_delay}`) |
+| `/api/train/status` | GET | Job status + live metrics analysis + log tail |
+| `/api/train/stop` | POST | Stop the running job |
+| `/api/train/environment` | GET | GPU / ML-deps detection + resolved auto mode |
 
 ---
 

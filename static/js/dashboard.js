@@ -43,6 +43,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
 
 function load(tab) {
   const map = {
+    train: loadTrain,
     loss: loadMetrics,
     dynamics: loadMetrics,
     audit: loadAudit,
@@ -51,6 +52,119 @@ function load(tab) {
     config: loadConfig,
   };
   (map[tab] || (() => {}))();
+}
+
+/* ---------------- Training pipeline ---------------- */
+let trainPoll = null;
+
+async function loadTrain(force) {
+  if (loaded.train && !force) return;
+  loaded.train = true;
+  const env = await getJSON("/api/train/environment");
+  document.getElementById("envBadges").innerHTML = `
+    <span class="env-badge ${env.gpu_available ? "on" : "off"}">GPU ${env.gpu_available ? "detected" : "none"}</span>
+    <span class="env-badge ${env.training_deps_available ? "on" : "off"}">ML deps ${env.training_deps_available ? "ready" : "missing"}</span>
+    <span class="env-badge">auto → ${env.resolved_auto_mode}</span>`;
+  if (!env.gpu_available) {
+    document.getElementById("cfgMode").value = "simulate";
+    document.getElementById("trainNote").textContent =
+      "No GPU here, so runs use simulation mode — it writes a real trainer_state.json " +
+      "incrementally so the live loss chart and analysis are fully exercised. On your " +
+      "RTX 2000 Ada box (with requirements-train.txt installed) pick Real to fine-tune Qwen3-8B.";
+  }
+  refreshTrainStatus();
+}
+
+document.getElementById("startBtn").addEventListener("click", async () => {
+  const config = {
+    mode: document.getElementById("cfgMode").value,
+    epochs: parseInt(document.getElementById("cfgEpochs").value, 10),
+    rank: parseInt(document.getElementById("cfgRank").value, 10),
+    learning_rate: parseFloat(document.getElementById("cfgLr").value),
+    step_delay: parseFloat(document.getElementById("cfgDelay").value),
+  };
+  const r = await getJSON("/api/train/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
+  if (r.error) { alert(r.error); return; }
+  startPolling();
+});
+
+document.getElementById("stopBtn").addEventListener("click", async () => {
+  await fetch("/api/train/stop", { method: "POST" });
+  refreshTrainStatus();
+});
+
+function startPolling() {
+  if (trainPoll) clearInterval(trainPoll);
+  refreshTrainStatus();
+  trainPoll = setInterval(refreshTrainStatus, 1200);
+}
+
+async function refreshTrainStatus() {
+  const d = await getJSON("/api/train/status");
+  if (d.error) return;
+  const job = d.job || { status: "idle" };
+  const running = job.status === "running";
+
+  const pill = document.getElementById("statusPill");
+  pill.className = "status-pill " + job.status;
+  pill.textContent = job.status;
+
+  document.getElementById("statusMeta").textContent = job.mode
+    ? `mode: ${job.mode}${job.config ? ` · ${job.config.epochs} epochs · rank ${job.config.rank}` : ""}`
+    : "";
+
+  document.getElementById("startBtn").disabled = running;
+  document.getElementById("stopBtn").disabled = !running;
+
+  const m = d.metrics;
+  const bar = document.getElementById("progressBar");
+  if (m) {
+    renderTrainCards(m.summary);
+    renderLiveLoss(m.series);
+    // Progress = elapsed epochs / configured epochs.
+    const epochs = job.config ? job.config.epochs : m.summary.total_epochs;
+    const frac = epochs ? m.summary.total_epochs / epochs : 0;
+    bar.style.width = (running ? Math.min(99, Math.round(frac * 100)) : 100) + "%";
+  } else {
+    bar.style.width = "0%";
+  }
+
+  const logEl = document.getElementById("trainLog");
+  logEl.textContent = d.log || "Waiting for log output…";
+  logEl.scrollTop = logEl.scrollHeight;
+
+  if (!running && trainPoll) {
+    clearInterval(trainPoll);
+    trainPoll = null;
+    loaded.metrics = false; // refresh Loss Analysis tab on next visit
+  }
+}
+
+function renderTrainCards(s) {
+  const cards = [
+    { label: "Step", value: s.total_steps, cls: "" },
+    { label: "Epoch", value: fmt(s.total_epochs, 2), cls: "" },
+    { label: "Train loss", value: fmt(s.final_train_loss), cls: "good" },
+    { label: "Eval loss", value: fmt(s.final_eval_loss), cls: "good" },
+    { label: "Best eval", value: fmt(s.best_eval_loss), cls: "good" },
+  ];
+  document.getElementById("trainCards").innerHTML = cards.map((c) => `
+    <div class="card"><div class="label">${c.label}</div>
+      <div class="value ${c.cls}">${c.value}</div></div>`).join("");
+}
+
+function renderLiveLoss(series) {
+  const train = series.train_loss.map((p) => ({ x: p.epoch, y: p.value }));
+  const evalp = series.eval_loss.map((p) => ({ x: p.epoch, y: p.value }));
+  lineChart("liveLossChart", [
+    { label: "Train loss", data: train, borderColor: C.accent, backgroundColor: "transparent" },
+    { label: "Eval loss", data: evalp, borderColor: C.amber, backgroundColor: "transparent",
+      pointRadius: 4, pointBackgroundColor: C.amber },
+  ], "epoch");
 }
 
 /* ---------------- Loss + Dynamics ---------------- */
@@ -368,5 +482,9 @@ async function loadConfig() {
     `<pre>${JSON.stringify(d, null, 2)}</pre>`;
 }
 
-/* Initial load */
-loadMetrics();
+/* Initial load — Train is the default tab. Resume polling if a run is live. */
+(async function init() {
+  await loadTrain();
+  const d = await getJSON("/api/train/status");
+  if (d.job && d.job.status === "running") startPolling();
+})();

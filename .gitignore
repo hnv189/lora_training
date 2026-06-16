@@ -9,6 +9,7 @@ env/
 dataset/
 lora-checkpoints/
 final-model/
+runs/
 *.safetensors
 *.bin
 wandb/

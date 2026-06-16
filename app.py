@@ -18,7 +18,7 @@ import os
 
 from flask import Flask, jsonify, render_template, request
 
-from lora_pipeline import data_audit, evaluate, metrics, prepare_data
+from lora_pipeline import data_audit, evaluate, job, metrics, prepare_data
 
 app = Flask(__name__)
 
@@ -184,9 +184,53 @@ def api_config():
     )
 
 
+# ---------------------------------------------------------------------------
+# API — training pipeline (launch / monitor / stop)
+# ---------------------------------------------------------------------------
+
+
+@app.route("/api/train/start", methods=["POST"])
+def api_train_start():
+    config = request.get_json(silent=True) or {}
+    try:
+        result = job.start(config)
+        return jsonify(result)
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/train/stop", methods=["POST"])
+def api_train_stop():
+    try:
+        return jsonify(job.stop())
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/train/status")
+def api_train_status():
+    try:
+        return jsonify(job.status())
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/train/environment")
+def api_train_environment():
+    return jsonify(
+        {
+            "gpu_available": job.gpu_available(),
+            "training_deps_available": job.training_deps_available(),
+            "resolved_auto_mode": job.resolve_mode("auto"),
+        }
+    )
+
+
 @app.route("/api/health")
 def api_health():
-    return jsonify({"ok": True, "version": "1.0.0"})
+    return jsonify({"ok": True, "version": "1.1.0"})
 
 
 if __name__ == "__main__":
